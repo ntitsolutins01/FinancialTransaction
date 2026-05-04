@@ -1,0 +1,74 @@
+services:
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.9.6      # ✅ versão fixada
+    container_name: zookeeper
+    restart: unless-stopped                      # ✅ resiliência
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:                                     # ✅ persistência
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+    networks:
+      - kafka
+    healthcheck:                                 # ✅ health check
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.9.6           # ✅ versão fixada
+    container_name: kafka
+    restart: unless-stopped                      # ✅ resiliência
+    ports:
+      - "9292:9292"     # externo → acesso pelo host / app fora do Docker
+      - "29292:29292"   # interno → acesso entre containers
+    depends_on:                                  # ✅ aguarda Zookeeper saudável
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      # ✅ Listeners separados: interno (containers) e externo (host)
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29292,EXTERNAL://0.0.0.0:9292
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29292,EXTERNAL://localhost:9292
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+    volumes:                                     # ✅ persistência
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - kafka
+    healthcheck:                                 # ✅ health check
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9292"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ✅ Descomente para incluir sua aplicação .NET no compose
+  # app:
+  #   build: .
+  #   container_name: minha-app
+  #   restart: unless-stopped
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #   environment:
+  #     KAFKA_BOOTSTRAP_SERVERS: kafka:29292     # ← listener INTERNO
+  #   networks:
+  #     - kafka
+
+networks:
+  kafka:
+    driver: bridge
+
+volumes:
+  zookeeper-data:
+  zookeeper-logs:
+  kafka-data:
+  

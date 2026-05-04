@@ -10,7 +10,7 @@ public class TodoItems : IEndpointGroup
 {
     public static void Map(RouteGroupBuilder groupBuilder)
     {
-        groupBuilder.RequireAuthorization();
+        //groupBuilder.RequireAuthorization();
 
         groupBuilder.MapPost(CreateTodoItem);
         groupBuilder.MapPut(UpdateTodoItem, "{id}");
@@ -24,7 +24,8 @@ public class TodoItems : IEndpointGroup
     {
         var id = await sender.Send(command);
 
-        return TypedResults.Created($"/{nameof(TodoItems)}/{id}", id);
+        var result = TypedResults.Created($"/{nameof(TodoItems)}/{id}", id);
+        return result;
     }
 
     [EndpointSummary("Update a Todo Item")]
